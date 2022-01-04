@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -68,7 +69,7 @@ public class GoofierGameScript : MonoBehaviour
         {
             if (moduleSolved) return false;
             for (int i = 0; i < 5; i++)
-                values[i][btn] = values[i][btn] == 9 ? 0 : values[i][btn] + 1;
+                values[i][btn] = (values[i][btn] + 1) % 10;
 
             var a = values[0][btn];
             var b = values[1][btn];
@@ -94,9 +95,11 @@ public class GoofierGameScript : MonoBehaviour
     {
         return delegate
         {
-            if (moduleSolved) return false;
+            if (moduleSolved)
+                return false;
+
             for (int i = 0; i < 5; i++)
-                values[i][btn] = values[i][btn] == 0 ? 9 : values[i][btn] - 1;
+                values[i][btn] = (values[i][btn] + 9) % 10;
 
             var a = values[0][btn];
             var b = values[1][btn];
@@ -122,9 +125,11 @@ public class GoofierGameScript : MonoBehaviour
     {
         return delegate
         {
-            if (moduleSolved) return false;
+            if (moduleSolved)
+                return false;
+
             for (int i = 0; i < 5; i++)
-                values[btn][i] = values[btn][i] == 0 ? 9 : values[btn][i] - 1;
+                values[btn][i] = (values[btn][i] + 9) % 10;
 
             var a = values[btn][0];
             var b = values[btn][1];
@@ -150,9 +155,11 @@ public class GoofierGameScript : MonoBehaviour
     {
         return delegate
         {
-            if (moduleSolved) return false;
+            if (moduleSolved)
+                return false;
+
             for (int i = 0; i < 5; i++)
-                values[btn][i] = values[btn][i] == 9 ? 0 : values[btn][i] + 1;
+                values[btn][i] = (values[btn][i] + 1) % 10;
 
             var a = values[btn][0];
             var b = values[btn][1];
@@ -249,14 +256,14 @@ public class GoofierGameScript : MonoBehaviour
             if (temp[0] == "Right")
                 Lefts[int.Parse(temp[1]) - 1].OnInteract();
             if (solveActive)
-                yield return new WaitForSeconds(.2f);
+                yield return new WaitForSeconds(.1f);
         }
         moves.Clear();
         yield return null;
     }
 
 #pragma warning disable 0414
-    readonly string TwitchHelpMessage = "!{0} r1l, r4r, c2d, c5u [Press Row 1 Left, Row 4 Right, Column 2 Down and Column 5 Up in that order] - !{0} reset [Reset the module]";
+    readonly string TwitchHelpMessage = "!{0} r1ll, r4r, c2dd, c5u [press row 1 left twice, row 4 right, column 2 down twice and column 5 up in that order] - !{0} reset [Reset the module]";
 #pragma warning restore 0414
 
     IEnumerator ProcessTwitchCommand(string command)
@@ -267,50 +274,62 @@ public class GoofierGameScript : MonoBehaviour
             yield return "sendtochaterror The module is already solved or is being force-solved.";
             yield break;
         }
-        else if ((m = Regex.Match(command, @"^\s*([rc12345udl, ]+\s*)\s*", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)).Success)
+        else if ((m = Regex.Match(command.ToLowerInvariant(), @"^\s*([rc12345udl, ]+\s*)\s*")).Success)
         {
-            var match = m.Groups[1].Value.Split(',').Select(x => x.Trim(' ')).ToList();
-            Debug.Log(match.Join(", "));
+            var match = m.Groups[1].Value.Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries);
 
-            for (int i = 0; i < match.Count; i++)
+            for (int i = 0; i < match.Length; i++)
             {
-                if (match[i].Length != 3)
+                if (match[i].Length < 3)
                 {
-                    Debug.Log(match[i].Length);
-                    Debug.Log(i);
-                    yield return "sendtochaterror Incorrect Length.";
+                    yield return "sendtochaterror Incorrect length.";
+                    yield break;
                 }
-                if (match[i][0] == 'c' && (match[i][2] == 'u' || match[i][2] == 'd'))
+                for (var j = 3; j < match[i].Length; j++)
+                    if (match[i][j] != match[i][2])
+                    {
+                        yield return "sendtochaterror Inconsistent direction.";
+                        yield break;
+                    }
+                if (!(match[i][0] == 'c' && (match[i][2] == 'u' || match[i][2] == 'd')) && !(match[i][0] == 'r' && (match[i][2] == 'l' || match[i][2] == 'r')))
                 {
-                    if (match[i][2] == 'u')
-                        Ups[int.Parse(match[i][1].ToString()) - 1].OnInteract();
-                    else
-                        Downs[int.Parse(match[i][1].ToString()) - 1].OnInteract();
+                    yield return "sendtochaterror Incorrect input.";
+                    yield break;
                 }
-                else if (match[i][0] == 'r' && (match[i][2] == 'l' || match[i][2] == 'r'))
-                {
-                    if (match[i][2] == 'l')
-                        Lefts[int.Parse(match[i][1].ToString()) - 1].OnInteract();
-                    else
-                        Rights[int.Parse(match[i][1].ToString()) - 1].OnInteract();
-                }
-                else
-                    yield return "sendtochaterror Incorrect Input.";
-
-                yield return new WaitForSeconds(.2f);
             }
             yield return null;
+            for (int i = 0; i < match.Length; i++)
+            {
+                if (match[i][0] == 'c')
+                    for (var j = 1; j <= match[i].Length - 2; j++)
+                    {
+                        if (match[i][2] == 'u')
+                            Ups[match[i][1] - '1'].OnInteract();
+                        else
+                            Downs[match[i][1] - '1'].OnInteract();
+                        yield return new WaitForSeconds(.1f);
+                    }
+                else
+                    for (var j = 1; j <= match[i].Length - 2; j++)
+                    {
+                        if (match[i][2] == 'l')
+                            Lefts[match[i][1] - '1'].OnInteract();
+                        else
+                            Rights[match[i][1] - '1'].OnInteract();
+                        yield return new WaitForSeconds(.1f);
+                    }
+            }
             yield break;
         }
-        else if (Regex.IsMatch(command, @"^\s*(reset)\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+        else if (Regex.IsMatch(command, @"^\s*reset\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
         {
-            StatusLight.OnInteract();
             yield return null;
+            StatusLight.OnInteract();
             yield break;
         }
         else
         {
-            yield return "sendtochaterror Invalid Command.";
+            yield return "sendtochaterror Invalid command.";
             yield break;
         }
     }
