@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using UnityEngine;
 using rnd = UnityEngine.Random;
 
@@ -56,7 +57,7 @@ public class GoofierGameScript : MonoBehaviour
         {
             if (moduleSolved) return false;
             Debug.LogFormat(@"[Goofier Game #{0}] Module Reset.", moduleId);
-            StartCoroutine(MoveBackInTime(false));
+            StartCoroutine(MoveBackInTime());
             return false;
         };
     }
@@ -225,11 +226,11 @@ public class GoofierGameScript : MonoBehaviour
         }
     }
 
-    private IEnumerator MoveBackInTime(bool all)
+    private IEnumerator MoveBackInTime()
     {
         var movesToUse = new List<string>();
 
-        if (all)
+        if (solveActive)
             movesToUse.AddRange(initialMoves);
 
         movesToUse.AddRange(moves);
@@ -247,9 +248,79 @@ public class GoofierGameScript : MonoBehaviour
                 Rights[int.Parse(temp[1]) - 1].OnInteract();
             if (temp[0] == "Right")
                 Lefts[int.Parse(temp[1]) - 1].OnInteract();
+            if (solveActive)
+                yield return new WaitForSeconds(.2f);
         }
         moves.Clear();
         yield return null;
-
     }
+
+#pragma warning disable 0414
+    readonly string TwitchHelpMessage = "!{0} r1l, r4r, c2d, c5u [Press Row 1 Left, Row 4 Right, Column 2 Down and Column 5 Up in that order] - !{0} reset [Reset the module]";
+#pragma warning restore 0414
+
+    IEnumerator ProcessTwitchCommand(string command)
+    {
+        Match m;
+        if (moduleSolved || solveActive)
+        {
+            yield return "sendtochaterror The module is already solved or is being force-solved.";
+            yield break;
+        }
+        else if ((m = Regex.Match(command, @"^\s*([rc12345udl, ]+\s*)\s*", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)).Success)
+        {
+            var match = m.Groups[1].Value.Split(',').Select(x => x.Trim(' ')).ToList();
+            Debug.Log(match.Join(", "));
+
+            for (int i = 0; i < match.Count; i++)
+            {
+                if (match[i].Length != 3)
+                {
+                    Debug.Log(match[i].Length);
+                    Debug.Log(i);
+                    yield return "sendtochaterror Incorrect Length.";
+                }
+                if (match[i][0] == 'c' && (match[i][2] == 'u' || match[i][2] == 'd'))
+                {
+                    if (match[i][2] == 'u')
+                        Ups[int.Parse(match[i][1].ToString()) - 1].OnInteract();
+                    else
+                        Downs[int.Parse(match[i][1].ToString()) - 1].OnInteract();
+                }
+                else if (match[i][0] == 'r' && (match[i][2] == 'l' || match[i][2] == 'r'))
+                {
+                    if (match[i][2] == 'l')
+                        Lefts[int.Parse(match[i][1].ToString()) - 1].OnInteract();
+                    else
+                        Rights[int.Parse(match[i][1].ToString()) - 1].OnInteract();
+                }
+                else
+                    yield return "sendtochaterror Incorrect Input.";
+
+                yield return new WaitForSeconds(.2f);
+            }
+            yield return null;
+            yield break;
+        }
+        else if (Regex.IsMatch(command, @"^\s*(reset)\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+        {
+            StatusLight.OnInteract();
+            yield return null;
+            yield break;
+        }
+        else
+        {
+            yield return "sendtochaterror Invalid Command.";
+            yield break;
+        }
+    }
+
+    IEnumerator TwitchHandleForcedSolve()
+    {
+        Debug.LogFormat(@"[Mindlock #{0}] Module was force-solved by TP.", moduleId);
+        solveActive = true;
+        yield return MoveBackInTime();
+        yield return null;
+    }
+
 }
