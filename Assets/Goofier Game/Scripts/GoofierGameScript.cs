@@ -296,6 +296,11 @@ public class GoofierGameScript : MonoBehaviour
                     yield return "sendtochaterror Incorrect input.";
                     yield break;
                 }
+                if (!"12345".Contains(match[i][1]))
+                {
+                    yield return "sendtochaterror Incorrect input.";
+                    yield break;
+                }
             }
             yield return null;
             for (int i = 0; i < match.Length; i++)
@@ -336,7 +341,7 @@ public class GoofierGameScript : MonoBehaviour
 
     IEnumerator TwitchHandleForcedSolve()
     {
-        Debug.LogFormat(@"[Mindlock #{0}] Module was force-solved by TP.", moduleId);
+        Debug.LogFormat(@"[Goofier Game #{0}] Module was force-solved by TP.", moduleId);
         solveActive = true;
         yield return MoveBackInTime();
         yield return null;
